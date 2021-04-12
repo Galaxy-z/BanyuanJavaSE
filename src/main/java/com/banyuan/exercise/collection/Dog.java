@@ -1,7 +1,5 @@
 package com.banyuan.exercise.collection;
 
-import org.jetbrains.annotations.NotNull;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -68,7 +66,7 @@ public class Dog implements Comparable<Dog> {
     }
 
     @Override
-    public int compareTo(@NotNull Dog o) {
+    public int compareTo(Dog o) {
         return this.weight - o.weight;
     }
 
