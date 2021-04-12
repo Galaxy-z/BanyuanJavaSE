@@ -20,8 +20,23 @@ import java.util.Objects;
  * 9.对该list按照狗狗的体重降序
  */
 public class Dog implements Comparable<Dog> {
+    private String name;
     private String color;
     private int weight;
+
+    public Dog(String name, String color, int weight) {
+        this.name = name;
+        this.color = color;
+        this.weight = weight;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
 
     @Override
     public boolean equals(Object o) {
@@ -39,7 +54,8 @@ public class Dog implements Comparable<Dog> {
     @Override
     public String toString() {
         return "Dog{" +
-                "color='" + color + '\'' +
+                "name='" + name + '\'' +
+                ", color='" + color + '\'' +
                 ", weight=" + weight +
                 '}';
     }
@@ -60,11 +76,6 @@ public class Dog implements Comparable<Dog> {
         this.weight = weight;
     }
 
-    public Dog(String color, int weight) {
-        this.color = color;
-        this.weight = weight;
-    }
-
     @Override
     public int compareTo(Dog o) {
         return this.weight - o.weight;
@@ -77,10 +88,11 @@ public class Dog implements Comparable<Dog> {
         for (int i = 0; i < 20; i++) {
             int colorChoice = (int) (Math.random() * 5);
             int weight = (int) (Math.random() * 50 + 1);
-            dogs.add(new Dog(colors[colorChoice], weight));
+            dogs.add(new Dog("Dog-" + i, colors[colorChoice], weight));
         }
-
+        System.out.println(dogs);
         Collections.reverse(dogs);
+        System.out.println(dogs);
 
         double sum = 0;
         for (Dog dog : dogs) {
@@ -98,11 +110,11 @@ public class Dog implements Comparable<Dog> {
             }
         }
 
-        Boolean exist = dogs.contains(new Dog("白色", 20));
+        Boolean exist = dogs.contains(new Dog("aaa", "白色", 20));
         System.out.println(exist);
 
         if (exist) {
-            System.out.println(dogs.indexOf(new Dog("白色", 20)));
+            System.out.println(dogs.indexOf(new Dog("aaa", "白色", 20)));
         }
 
         Dog minDog = Collections.min(dogs);
