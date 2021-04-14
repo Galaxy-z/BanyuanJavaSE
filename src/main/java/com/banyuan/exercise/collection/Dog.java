@@ -117,14 +117,17 @@ public class Dog implements Comparable<Dog> {
             System.out.println(dogs.indexOf(new Dog("aaa", "白色", 20)));
         }
 
+        System.out.println(dogs);
         Dog minDog = Collections.min(dogs);
         int minIndex = dogs.indexOf(minDog);
         Dog maxDog = Collections.max(dogs);
         int maxIndex = dogs.indexOf(maxDog);
         dogs.set(minIndex, maxDog);
         dogs.set(maxIndex, minDog);
+        System.out.println(dogs);
 
-        Collections.sort(dogs);
+        dogs.sort(Collections.reverseOrder());
+
 
         System.out.println(dogs);
     }
