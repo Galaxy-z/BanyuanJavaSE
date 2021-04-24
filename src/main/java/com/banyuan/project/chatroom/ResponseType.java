@@ -30,7 +30,11 @@ public enum ResponseType implements Serializable {
     // 创建文件数据包
     CREATE_FILE_PACKAGE,
     // 合并文件
-    COMBINE_FILES
+    COMBINE_FILES,
+    // 发送注销请求
+    SEND_LOGOUT,
+    //
+    SERVICE_SHUTDOWN
 
 
 

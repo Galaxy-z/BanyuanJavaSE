@@ -6,6 +6,8 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.event.ActionListener;
 import java.awt.event.ActionEvent;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -33,10 +35,10 @@ public class ChatServer {
     private JButton quitButton;
     private JComboBox toUserComboBox;
     private JDialog portSetDialog;
-    private File file;
     // Information List
     private List<String> infoList;
 
+    // 端口
     private int port;
 
     // 请求队列
@@ -69,7 +71,6 @@ public class ChatServer {
      * Create the application.
      */
     public ChatServer() {
-
         initialize();
     }
 
@@ -109,6 +110,14 @@ public class ChatServer {
         msgInputField.setBounds(77, 382, 304, 26);
         frame.getContentPane().add(msgInputField);
         msgInputField.setColumns(10);
+        msgInputField.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                int k = e.getKeyCode();
+                if(k == KeyEvent.VK_ENTER)
+                    msgSendButton.doClick();
+            }
+        });
 
         msgSendButton = new JButton("发送");
         msgSendButton.setBounds(393, 382, 117, 29);
@@ -149,21 +158,26 @@ public class ChatServer {
 
         stopServiceButton = new JButton("停止服务");
         stopServiceButton.setForeground(new Color(128, 128, 128));
-        stopServiceButton.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-            }
-        });
         stopServiceButton.setFont(new Font("Lucida Grande", Font.PLAIN, 16));
         stopServiceButton.setBounds(264, 6, 117, 39);
         stopServiceButton.setEnabled(false);
         frame.getContentPane().add(stopServiceButton);
+//        stopServiceButton.addActionListener(e->{
+//            try {
+//                requestQueue.put(new Request("server", "server", SHUTDOWN));
+//            } catch (InterruptedException interruptedException) {
+//                interruptedException.printStackTrace();
+//            }
+//            portSetButton.setEnabled(true);
+//            startServiceButton.setEnabled(true);
+//            msgSendButton.setEnabled(false);
+//            stopServiceButton.setEnabled(false);
+//        }
+//        );
 
         quitButton = new JButton("退出");
         quitButton.setForeground(new Color(250, 128, 114));
-        quitButton.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-            }
-        });
+        quitButton.addActionListener(e -> System.exit(0));
         quitButton.setFont(new Font("Lucida Grande", Font.PLAIN, 16));
         quitButton.setBounds(393, 6, 117, 39);
         frame.getContentPane().add(quitButton);
@@ -188,6 +202,7 @@ public class ChatServer {
     }
 
 
+    // 端口设置窗口
     private class PortSet extends JDialog {
         private final JPanel contentPanel = new JPanel();
         private JTextField textField;
@@ -253,10 +268,12 @@ public class ChatServer {
             sb.append(s).append("\n");
         }
         infoDisplayArea.setText(sb.toString());
+        infoDisplayArea.setCaretPosition(infoDisplayArea.getText().length());
     }
 
     // 网络引擎(服务器主线程)
     private class NetEngine implements Runnable {
+
 
         // 用户-输出流映射表
         private ConcurrentHashMap<String, ObjectOutputStream> userOutMap;
@@ -310,6 +327,7 @@ public class ChatServer {
             displayInfo("请求处理线程池已启动");
         }
 
+        // 启动服务
         private void runService() throws IOException {
             // 初始化server socket，用户-输出流映射表
             ServerSocket serverSocket = new ServerSocket(port);
@@ -344,7 +362,6 @@ public class ChatServer {
                             // 请求刷新用户列表
                             requestQueue.put(new Request("server", "server", REFRESH_USER_LIST));
                             displayInfo(userName + "已登录");
-
                             // 启动侦听线程
                             new Thread(() -> {
                                 while (true) {
@@ -380,12 +397,13 @@ public class ChatServer {
             }
         }
 
+        // 与用户断连，删除用户
         private void removeUser(String username) throws InterruptedException {
             userOutMap.remove(username);
             requestQueue.put(new Request("server", "server", REFRESH_USER_LIST));
         }
 
-
+        // Handler 处理Request
         private class Handler implements Runnable {
 
             private Request request;
@@ -397,6 +415,7 @@ public class ChatServer {
             @Override
             public void run() {
                 switch (request.getType()) {
+                    // 刷新用户列表
                     case REFRESH_USER_LIST:
                         try {
                             notifyUserNumberChange();
@@ -405,6 +424,7 @@ public class ChatServer {
                             e.printStackTrace();
                         }
 
+                    // 服务器发送信息
                     case SEND_SERVER_MSG:
                         try {
                             serverSendMsg();
@@ -413,6 +433,7 @@ public class ChatServer {
                             e.printStackTrace();
                         }
 
+                    // 转发信息
                     case SEND_MSG:
                         try {
                             sendMsg(request);
@@ -421,11 +442,11 @@ public class ChatServer {
                             e.printStackTrace();
                         }
 
+                    // 转发简单信息
                     case SEND_ASK_FILE_ACCEPT:
                     case ACCEPT_FILE:
                     case REFUSE_FILE:
                     case SEND_VERIFICATION_FAILED:
-
                         try {
                             sendSimpleResponse();
                             break;
@@ -433,6 +454,7 @@ public class ChatServer {
                             e.printStackTrace();
                         }
 
+                    // 转发文件数据包
                     case SEND_FILE_PACKAGE:
                         try {
                             sendFilePackage();
@@ -440,11 +462,32 @@ public class ChatServer {
                         } catch (IOException e) {
                             e.printStackTrace();
                         }
+                    // 用户注销
+                    case LOGOUT:
+                        try {
+                            removeUser(request.getFrom());
+                            break;
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
 
+                    case SHUTDOWN:
+                        Collection<ObjectOutputStream> outs = userOutMap.values();
+                        for (ObjectOutputStream out : outs) {
+                            try {
+                                out.writeObject(new Response("server","public",SERVICE_SHUTDOWN));
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+                        }
+
+                        displayInfo("已关闭服务");
 
                 }
             }
 
+
+            // 转发文件数据包
             private void sendFilePackage() throws IOException {
                 String to = request.getTo();
                 ObjectOutputStream out = userOutMap.get(to);
@@ -454,12 +497,14 @@ public class ChatServer {
                 }
             }
 
+            // 转发简单信息
             private void sendSimpleResponse() throws IOException {
                 String from = request.getFrom();
                 String to = request.getTo();
                 String text = request.getText();
                 RequestType requestType = request.getType();
                 ResponseType responseType = null;
+                // Request 转 Response
                 switch (requestType) {
                     case SEND_ASK_FILE_ACCEPT:
                         responseType = ASK_FILE_ACCEPT;
@@ -524,7 +569,7 @@ public class ChatServer {
                 }
             }
 
-
+            // 提醒所有用户刷新用户列表
             private void notifyUserNumberChange() throws IOException {
                 // 刷新服务端用户数量
                 onlineUserNumberPane.setText(userOutMap.size() + "人在线");
@@ -541,6 +586,7 @@ public class ChatServer {
                     toUserComboBox.addItem(user);
                     sb.append(user).append(",");
                 }
+                // 广播
                 for (ObjectOutputStream out : outs) {
                     out.writeObject(new Response("server", "all", NEW_USER_LIST, (sb.toString())));
                 }

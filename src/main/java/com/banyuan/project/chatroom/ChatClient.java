@@ -1,11 +1,15 @@
 package com.banyuan.project.chatroom;
 
+import jdk.swing.interop.SwingInterOpUtils;
+
 import java.awt.*;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.event.ActionListener;
 import java.awt.event.ActionEvent;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.io.*;
 import java.net.Socket;
 import java.text.SimpleDateFormat;
@@ -134,6 +138,9 @@ public class ChatClient {
         quitButton.setFont(new Font("Lucida Grande", Font.PLAIN, 16));
         quitButton.setBounds(362, 6, 82, 35);
         frame.getContentPane().add(quitButton);
+        quitButton.addActionListener(e->{
+            System.exit(0);
+        });
 
         logOutButton = new JButton("注销");
         logOutButton.setForeground(new Color(95, 158, 160));
@@ -141,9 +148,18 @@ public class ChatClient {
         logOutButton.setBounds(272, 6, 60, 35);
         logOutButton.setEnabled(false);
         frame.getContentPane().add(logOutButton);
-        logOutButton.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
+        logOutButton.addActionListener(e->{
+            try {
+                responseQueue.put(new Response(userName,userName,SEND_LOGOUT));
+            } catch (InterruptedException interruptedException) {
+                interruptedException.printStackTrace();
             }
+            logInButton.setEnabled(true);
+            logOutButton.setEnabled(false);
+            userSetButton.setEnabled(true);
+            connectSetButton.setEnabled(true);
+            msgSendButton.setEnabled(false);
+            fileSendButton.setEnabled(false);
         });
 
         infoDisplayArea = new JTextArea();
@@ -160,6 +176,14 @@ public class ChatClient {
         msgInputField.setBounds(68, 490, 272, 26);
         frame.getContentPane().add(msgInputField);
         msgInputField.setColumns(10);
+        msgInputField.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                int k = e.getKeyCode();
+                if(k == KeyEvent.VK_ENTER)
+                msgSendButton.doClick();
+            }
+        });
 
         JLabel msgSendLabel = new JLabel("发送消息：");
         msgSendLabel.setBounds(6, 495, 65, 16);
@@ -233,8 +257,10 @@ public class ChatClient {
         });
     }
 
+    // 发送文件选择
     private File chooseFile() {
         JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("请选择要发送的文件");
         int ret = chooser.showOpenDialog(frame);
         if (ret == JFileChooser.APPROVE_OPTION) {
             File file = chooser.getSelectedFile();
@@ -245,9 +271,10 @@ public class ChatClient {
         return null;
     }
 
+    // 用户设置弹窗
     private class UserSet extends JDialog {
         private final JPanel contentPanel = new JPanel();
-        private JTextField userNameTextField;
+        private final JTextField userNameTextField;
 
         public UserSet(JFrame owner) {
             super(owner, "用户设置", true);
@@ -296,10 +323,11 @@ public class ChatClient {
         }
     }
 
+    // 连接设置弹窗
     private class ConnectionSet extends JDialog {
         private final JPanel contentPanel = new JPanel();
-        private JTextField ipTextField;
-        private JTextField portTextField;
+        private final JTextField ipTextField;
+        private final JTextField portTextField;
 
         public ConnectionSet(JFrame owner) {
             super(owner, "连接设置", true);
@@ -375,8 +403,10 @@ public class ChatClient {
             sb.append(s).append("\n");
         }
         infoDisplayArea.setText(sb.toString());
+        infoDisplayArea.setCaretPosition(infoDisplayArea.getText().length());
     }
 
+    // 刷新最后一条消息
     private synchronized void displayInfo(String info, boolean refresh) {
         if (refresh) {
 
@@ -386,22 +416,19 @@ public class ChatClient {
     }
 
     private class netEngine implements Runnable {
-
-        private Set<String> onlineUserSet;
-
-
+        // handler线程池
         private ExecutorService handlerThreadPool;
-
+        // 与服务器对接的输出流
         private ObjectOutputStream out;
-
+        // 显示进度条需要的相关数据
         private int displayTotal;
 
         private int displayPart;
-
+        // 临时文件存放目录
         private File tempFileDir;
-
+        // 文件保存目录
         private File saveDirectory;
-
+        // 文件发送对方名字
         private String fileTo;
 
         @Override
@@ -491,13 +518,13 @@ public class ChatClient {
                         }
                     }
                 }
-                displayInfo("服务器异常，已断开连接");
+                displayInfo("已与服务器断开连接");
             }).start();
         }
 
 
         private class Handler implements Runnable {
-            private Response response;
+            private final Response response;
 
             public Handler(Response response) {
                 this.response = response;
@@ -510,7 +537,7 @@ public class ChatClient {
                     case NEW_USER_LIST:
                         updateUserList();
                         break;
-
+                    // 客户端发送信息
                     case SEND_CLIENT_MSG:
                         try {
                             clientSendMsg();
@@ -518,7 +545,7 @@ public class ChatClient {
                         } catch (IOException e) {
                             e.printStackTrace();
                         }
-
+                    // 有新消息
                     case INCOMING_MSG:
                         try {
                             displayAndSendMsg(response, false);
@@ -526,7 +553,7 @@ public class ChatClient {
                         } catch (IOException e) {
                             e.printStackTrace();
                         }
-
+                    // 发送文件接受询问请求
                     case SEND_FILE_ACCEPT_REQUEST:
                         try {
                             sendFileAcceptRequest();
@@ -534,7 +561,7 @@ public class ChatClient {
                         } catch (IOException e) {
                             e.printStackTrace();
                         }
-
+                    // 询问是否接收文件
                     case ASK_FILE_ACCEPT:
                         try {
                             confirmAcceptFile();
@@ -542,12 +569,12 @@ public class ChatClient {
                         } catch (IOException e) {
                             e.printStackTrace();
                         }
-
+                    // 对方拒绝文件接收
                     case TARGET_REFUSE_FILE:
                         selectedFile = null;
                         displayInfo(response.getFrom() + "拒绝接收文件");
                         break;
-
+                    // 对方接收文件
                     case TARGET_ACCEPT_FILE:
                         try {
                             verifyAcceptFile();
@@ -555,15 +582,15 @@ public class ChatClient {
                         } catch (IOException | InterruptedException e) {
                             e.printStackTrace();
                         }
-
+                    // 验证失败
                     case VERIFICATION_FAILED:
                         displayInfo(response.getFrom() + "取消了文件传输");
                         break;
-
+                    // 创建文件数据包
                     case CREATE_FILE_PACKAGE:
                         createFilePackage();
                         break;
-
+                    // 文件数据包
                     case FILE_PACKAGE:
                         try {
                             displayProcess();
@@ -572,22 +599,34 @@ public class ChatClient {
                         } catch (InterruptedException e) {
                             e.printStackTrace();
                         }
-
+                    // 合并文件
                     case COMBINE_FILES:
                         displayInfo("合并文件中……");
                         combineFiles();
                         displayInfo("文件下载完成");
                         break;
 
+                    case SEND_LOGOUT:
+                    case SERVICE_SHUTDOWN:
+                        try {
+                            logOut();
+                            break;
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
 
-
-                    default:
-                        displayInfo(response.getType() + "");
 
                 }
 
             }
 
+            private void logOut() throws IOException {
+                out.writeObject(new Request(userName,"server",LOGOUT));
+                out.close();
+                out = null;
+            }
+
+            // 清理临时文件
             private void cleanTemp() {
                 File[] tempfiles = tempFileDir.listFiles();
                 for (File tempfile : tempfiles) {
@@ -601,10 +640,13 @@ public class ChatClient {
 
             }
 
+            // 合并文件
             private void combineFiles() {
                 String fileName = response.getText();
+                // 完整文件的路径
                 File fullFile = new File(saveDirectory, fileName);
                 byte[] b = new byte[1024];
+                // 依次读取临时并写入完整文件
                 for (int i = 1; i <= displayTotal; i++) {
                     String partFilePath = tempFileDir.getAbsolutePath() + File.separator + fileName + ".part" + i;
                     File partFile = new File(partFilePath);
@@ -624,6 +666,7 @@ public class ChatClient {
                 cleanTemp();
             }
 
+            // 显示进度条
             private void displayProcess() {
                 String[] args = response.getText().split(",");
                 displayTotal = Integer.parseInt(args[2]);
@@ -647,6 +690,7 @@ public class ChatClient {
 
             }
 
+            // 将文件数据包数据写入临时文件
             private void writeTempFile() throws InterruptedException {
                 String[] args = response.getText().split(",");
                 String fileName = args[0];
@@ -671,9 +715,10 @@ public class ChatClient {
 
             }
 
+            // 创建文件数据包
             private void createFilePackage() {
+                // 读取数据并封装
                 try (BufferedInputStream bis = new BufferedInputStream(new FileInputStream(selectedFile))) {
-
                     String[] args = response.getText().split(",");
                     int part = Integer.parseInt(args[1]);
                     int total = Integer.parseInt(args[2]);
@@ -694,7 +739,9 @@ public class ChatClient {
 
             }
 
+            // 创建文件传输任务
             private void createFileTransferTask() throws InterruptedException {
+                // 计算数据包数量及数据长度
                 int packageCount = (int) (selectedFile.length() / MAX_PACKAGE_SIZE + 1);
                 int finalSize = (int) (selectedFile.length() - (packageCount - 1) * MAX_PACKAGE_SIZE);
                 for (int i = 1; i <= packageCount; i++) {
@@ -708,6 +755,7 @@ public class ChatClient {
                 }
             }
 
+            // 验证文件名字与对方名字
             private void verifyAcceptFile() throws IOException, InterruptedException {
                 String from = response.getFrom();
                 int incomingVerificationCode = (from + response.getText()).hashCode();
@@ -721,12 +769,14 @@ public class ChatClient {
 
             }
 
+            // 确认接收文件对话框
             private void confirmAcceptFile() throws IOException {
                 String from = response.getFrom();
                 String[] args = response.getText().split(",");
                 String fileName = args[0];
                 double fileSize = Integer.parseInt(args[1]);
                 String sizeUnit;
+                // 自适应容量单位
                 if (fileSize < 1024) {
                     sizeUnit = "byte";
                 } else {
@@ -746,8 +796,10 @@ public class ChatClient {
                         "文件接收", JOptionPane.YES_NO_OPTION);
                 if (opt == JOptionPane.YES_OPTION) {
                     JFileChooser chooser = new JFileChooser();
+                    chooser.setDialogTitle("请选择文件保存目录");
                     chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
                     int ret = chooser.showOpenDialog(frame);
+                    // 获取文件保存目录
                     if (ret == JFileChooser.APPROVE_OPTION) {
                         saveDirectory = chooser.getSelectedFile();
                         displayInfo("文件保存目录：\n         " + saveDirectory.getAbsolutePath());
@@ -764,6 +816,7 @@ public class ChatClient {
                 }
             }
 
+            // 发送文件接收询问
             private void sendFileAcceptRequest() throws IOException {
                 fileTo = (String) toUserComboBox.getSelectedItem();
                 if (fileTo.equals("所有人")) {
@@ -795,7 +848,7 @@ public class ChatClient {
                 msgInputField.setText("");
             }
 
-            // 显示信息，可选发送
+            // 显示新信息，可选发送
             private void displayAndSendMsg(Response response, boolean send) throws IOException {
                 String from = response.getFrom();
                 String to = response.getTo();
@@ -818,6 +871,7 @@ public class ChatClient {
                 }
             }
 
+            // 刷新用户列表
             private void updateUserList() {
                 // 字符串解析
                 String[] users = response.getText().split(",");

@@ -21,4 +21,8 @@ public enum RequestType implements Serializable {
     SEND_VERIFICATION_FAILED,
     // 转发文件数据包
     SEND_FILE_PACKAGE,
+    // 注销
+    LOGOUT,
+
+    SHUTDOWN
 }
