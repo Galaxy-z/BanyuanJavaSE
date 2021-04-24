@@ -17,14 +17,28 @@ public class Request implements Serializable {
 
     private byte[] content;
 
-    public Request(String from, String to, RequestType type, String expression, boolean isWhisper, String text, byte[] content) {
+    public Request(String from, String to, RequestType type, String text, byte[] content) {
+        this.from = from;
+        this.to = to;
+        this.type = type;
+        this.text = text;
+        this.content = content;
+    }
+
+    public Request(String from, String to, RequestType type, String text) {
+        this.from = from;
+        this.to = to;
+        this.type = type;
+        this.text = text;
+    }
+
+    public Request(String from, String to, RequestType type, String expression, boolean isWhisper, String text) {
         this.from = from;
         this.to = to;
         this.type = type;
         this.expression = expression;
         this.isWhisper = isWhisper;
         this.text = text;
-        this.content = content;
     }
 
     public Request(String from, String to, RequestType type) {
@@ -66,6 +80,7 @@ public class Request implements Serializable {
         return "Request{" +
                 "from='" + from + '\'' +
                 ", to='" + to + '\'' +
+                ", type=" + type +
                 '}';
     }
 }

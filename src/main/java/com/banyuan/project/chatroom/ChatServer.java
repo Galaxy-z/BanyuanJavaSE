@@ -17,7 +17,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 
-import static com.banyuan.project.chatroom.RequestType.REFRESH_USER_NUMBER;
+import static com.banyuan.project.chatroom.RequestType.*;
 import static com.banyuan.project.chatroom.ResponseType.*;
 
 public class ChatServer {
@@ -29,17 +29,30 @@ public class ChatServer {
     private JTextPane onlineUserNumberPane;
     private JButton startServiceButton;
     private JButton stopServiceButton;
+    private JButton msgSendButton;
     private JButton quitButton;
+    private JComboBox toUserComboBox;
     private JDialog portSetDialog;
+    private File file;
     // Information List
     private List<String> infoList;
 
     private int port;
 
+    // 请求队列
+    private LinkedBlockingQueue<Request> requestQueue;
+
     /**
      * Launch the application.
      */
     public static void main(String[] args) {
+        try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (ClassNotFoundException | InstantiationException | IllegalAccessException
+                | UnsupportedLookAndFeelException e) {
+
+            e.printStackTrace();
+        }
         EventQueue.invokeLater(new Runnable() {
             public void run() {
                 try {
@@ -56,6 +69,7 @@ public class ChatServer {
      * Create the application.
      */
     public ChatServer() {
+
         initialize();
     }
 
@@ -96,14 +110,17 @@ public class ChatServer {
         frame.getContentPane().add(msgInputField);
         msgInputField.setColumns(10);
 
-        JButton msgSendButton = new JButton("发送");
-        msgSendButton.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-            }
-        });
+        msgSendButton = new JButton("发送");
         msgSendButton.setBounds(393, 382, 117, 29);
         msgSendButton.setEnabled(false);
         frame.getContentPane().add(msgSendButton);
+        msgSendButton.addActionListener(e -> {
+            try {
+                requestQueue.put(new Request("server", "server", SEND_SERVER_MSG));
+            } catch (InterruptedException interruptedException) {
+                interruptedException.printStackTrace();
+            }
+        });
 
         infoDisplayArea = new JTextArea();
         infoDisplayArea.setBackground(new Color(253, 245, 230));
@@ -151,7 +168,7 @@ public class ChatServer {
         quitButton.setBounds(393, 6, 117, 39);
         frame.getContentPane().add(quitButton);
 
-        JComboBox toUserComboBox = new JComboBox();
+        toUserComboBox = new JComboBox();
         toUserComboBox.setBounds(77, 353, 96, 27);
         frame.getContentPane().add(toUserComboBox);
 
@@ -169,6 +186,7 @@ public class ChatServer {
         onlineUserNumberPane.setBounds(6, 415, 53, 16);
         frame.getContentPane().add(onlineUserNumberPane);
     }
+
 
     private class PortSet extends JDialog {
         private final JPanel contentPanel = new JPanel();
@@ -223,11 +241,13 @@ public class ChatServer {
 
     // 在信息界面显示信息
     private synchronized void displayInfo(String info) {
+        // 添加时间戳
         Date date = new Date();
         SimpleDateFormat sdf = new SimpleDateFormat("hh:mm:ss");
         String time = sdf.format(date);
-
+        // 向信息列表中添加信息
         infoList.add(time + " " + info);
+        // 拼接消息并展示
         StringBuilder sb = new StringBuilder();
         for (String s : infoList) {
             sb.append(s).append("\n");
@@ -235,20 +255,25 @@ public class ChatServer {
         infoDisplayArea.setText(sb.toString());
     }
 
+    // 网络引擎(服务器主线程)
     private class NetEngine implements Runnable {
 
-        // 用户-输出Map
+        // 用户-输出流映射表
         private ConcurrentHashMap<String, ObjectOutputStream> userOutMap;
 
-        private LinkedBlockingQueue<Request> requestQueue;
 
+        // handler线程池
         private ExecutorService handlerThreadPool;
 
         @Override
         public void run() {
+            // 初始化请求队列
             initRequestQueue();
+            // 初始化handler线程池
             initHandlerThreadPool();
+            // 运行handler线程池
             runHandler();
+            // 运行服务
             try {
                 runService();
             } catch (IOException e) {
@@ -268,6 +293,7 @@ public class ChatServer {
         }
 
         private void runHandler() {
+            // 这个线程会等待请求队列，从中取出请求并创建handler线程处理
             Runnable handlerExecution = () -> {
                 while (true) {
                     try {
@@ -285,13 +311,18 @@ public class ChatServer {
         }
 
         private void runService() throws IOException {
+            // 初始化server socket，用户-输出流映射表
             ServerSocket serverSocket = new ServerSocket(port);
             userOutMap = new ConcurrentHashMap<>();
             displayInfo("服务器启动完成，等待用户连接……");
+            msgSendButton.setEnabled(true);
+
             while (true) {
+                // 等待与客户端建立连接，初始化输入输出流
                 Socket socket = serverSocket.accept();
                 ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
                 ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
+                // 这个线程实现用户首次登陆验证，并且登录成功才会对用户创建侦听线程
                 new Thread(() -> {
                     // 等待客户端传入用户名
                     try {
@@ -299,44 +330,47 @@ public class ChatServer {
                         Request loginRequest = (Request) in.readObject();
                         System.out.println(loginRequest);
                         String userName = loginRequest.getFrom();
+                        // 用户名重复
                         if (userOutMap.containsKey(userName)) {
+                            // 响应REPEATED_USERNAME
                             out.writeObject(new Response("server", null, REPEATED_USERNAME));
-                        } else {
+                        }
+                        // 新用户名
+                        else {
+                            // 响应OK
                             out.writeObject(new Response("server", null, OK));
+                            // 存入用户名和输出流
                             userOutMap.put(userName, out);
-                            requestQueue.put(new Request("server", "server", REFRESH_USER_NUMBER));
+                            // 请求刷新用户列表
+                            requestQueue.put(new Request("server", "server", REFRESH_USER_LIST));
                             displayInfo(userName + "已登录");
-                            notifyUserNumberChange();
+
                             // 启动侦听线程
                             new Thread(() -> {
                                 while (true) {
                                     try {
                                         Request request = (Request) in.readObject();
-                                        if (request != null)
+                                        if (request != null) {
+                                            System.out.println(request);
                                             requestQueue.put(request);
+                                        }
                                     } catch (IOException | InterruptedException | ClassNotFoundException e) {
                                         e.printStackTrace();
-                                        break;
+                                        if (e instanceof IOException) {
+                                            // 发生异常，退出侦听
+                                            break;
+                                        }
                                     }
-//                                    } finally {
-//                                        displayInfo(userName + "断开连接");
-//                                        removeUser(userName);
-//                                        try {
-//                                            notifyUserNumberChange();
-//                                        } catch (IOException e) {
-//                                            e.printStackTrace();
-//                                        }
-//                                        ok = false;
-                                    displayInfo(userName + "断开连接");
+                                }
+                                // 显示用户断开连接，移除用户
+                                displayInfo(userName + "断开连接");
+                                try {
                                     removeUser(userName);
-                                    try {
-                                        notifyUserNumberChange();
-                                    } catch (IOException e) {
-                                        e.printStackTrace();
-                                    }
-
+                                } catch (InterruptedException e) {
+                                    e.printStackTrace();
                                 }
                             }).start();
+
                         }
                     } catch (IOException | ClassNotFoundException | InterruptedException e) {
                         e.printStackTrace();
@@ -346,39 +380,174 @@ public class ChatServer {
             }
         }
 
-        private void removeUser(String username) {
+        private void removeUser(String username) throws InterruptedException {
             userOutMap.remove(username);
+            requestQueue.put(new Request("server", "server", REFRESH_USER_LIST));
         }
 
-        private void notifyUserNumberChange() throws IOException {
-            onlineUserNumberPane.setText(userOutMap.size() + "人在线");
 
-            Collection<ObjectOutputStream> outs = userOutMap.values();
-            Set<String> users = userOutMap.keySet();
+        private class Handler implements Runnable {
 
-            StringBuilder sb = new StringBuilder();
-            for (String user : users) {
-                sb.append(user).append(",");
+            private Request request;
+
+            public Handler(Request request) {
+                this.request = request;
             }
 
-            for (ObjectOutputStream out : outs) {
-                out.writeObject(new Response("server", "public", NEW_USER_LIST, (sb.toString())));
+            @Override
+            public void run() {
+                switch (request.getType()) {
+                    case REFRESH_USER_LIST:
+                        try {
+                            notifyUserNumberChange();
+                            break;
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+
+                    case SEND_SERVER_MSG:
+                        try {
+                            serverSendMsg();
+                            break;
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+
+                    case SEND_MSG:
+                        try {
+                            sendMsg(request);
+                            break;
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+
+                    case SEND_ASK_FILE_ACCEPT:
+                    case ACCEPT_FILE:
+                    case REFUSE_FILE:
+                    case SEND_VERIFICATION_FAILED:
+
+                        try {
+                            sendSimpleResponse();
+                            break;
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+
+                    case SEND_FILE_PACKAGE:
+                        try {
+                            sendFilePackage();
+                            break;
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+
+
+                }
             }
 
+            private void sendFilePackage() throws IOException {
+                String to = request.getTo();
+                ObjectOutputStream out = userOutMap.get(to);
+                Response response = new Response(request.getFrom(),to,FILE_PACKAGE, request.getText(),request.getContent());
+                synchronized (Handler.class){
+                    out.writeObject(response);
+                }
+            }
+
+            private void sendSimpleResponse() throws IOException {
+                String from = request.getFrom();
+                String to = request.getTo();
+                String text = request.getText();
+                RequestType requestType = request.getType();
+                ResponseType responseType = null;
+                switch (requestType) {
+                    case SEND_ASK_FILE_ACCEPT:
+                        responseType = ASK_FILE_ACCEPT;
+                        break;
+                    case ACCEPT_FILE:
+                        responseType = TARGET_ACCEPT_FILE;
+                        break;
+                    case REFUSE_FILE:
+                        responseType = TARGET_REFUSE_FILE;
+                        break;
+                    case SEND_VERIFICATION_FAILED:
+                        responseType = VERIFICATION_FAILED;
+                        break;
+
+                }
+                Response response = new Response(from, to, responseType, text);
+                ObjectOutputStream out = userOutMap.get(to);
+                out.writeObject(response);
+            }
+
+            // 服务器向外发送信息
+            private void serverSendMsg() throws IOException {
+                String to = (String) toUserComboBox.getSelectedItem();
+                String msg = msgInputField.getText();
+                if (msg.equals("")) {
+                    displayInfo("消息不能为空");
+                } else if (to == null) {
+                    displayInfo("没有接受信息的用户！");
+                } else {
+                    sendMsg(new Request("server", to, SEND_MSG, "", !to.equals("所有人"), msg));
+                }
+                msgInputField.setText("");
+            }
+
+            // 转发信息 request -> response
+            private void sendMsg(Request request) throws IOException {
+                String from = request.getFrom();
+                String to = request.getTo();
+                String expression = request.getExpression();
+                boolean whisper = request.isWhisper();
+                String msg = request.getText();
+
+                String s = (whisper ? "*悄悄话*" : "") +
+                        (from.equals("server") ? "服务器" : from) +
+                        (expression.equals("") ? "" : (expression + "地")) +
+                        "对" + to + "说：" + msg;
+                displayInfo(s);
+                Response response = new Response(from, to, INCOMING_MSG, expression, whisper, msg);
+                // 悄悄话单独发
+                if (whisper) {
+                    ObjectOutputStream out = userOutMap.get(to);
+                    out.writeObject(response);
+
+                } else {
+                    Collection<ObjectOutputStream> outs = userOutMap.values();
+                    for (ObjectOutputStream out : outs) {
+                        // 不向发来信息的用户发送
+                        if (out != userOutMap.get(from)) {
+                            out.writeObject(response);
+                        }
+                    }
+                }
+            }
+
+
+            private void notifyUserNumberChange() throws IOException {
+                // 刷新服务端用户数量
+                onlineUserNumberPane.setText(userOutMap.size() + "人在线");
+                Collection<ObjectOutputStream> outs = userOutMap.values();
+                Set<String> users = userOutMap.keySet();
+
+                // 刷新服务端用户选取列表
+                StringBuilder sb = new StringBuilder();
+                toUserComboBox.removeAllItems();
+                toUserComboBox.addItem("所有人");
+
+                // 通过text字符串发送用户列表
+                for (String user : users) {
+                    toUserComboBox.addItem(user);
+                    sb.append(user).append(",");
+                }
+                for (ObjectOutputStream out : outs) {
+                    out.writeObject(new Response("server", "all", NEW_USER_LIST, (sb.toString())));
+                }
+
+            }
         }
     }
 
-    private class Handler implements Runnable {
 
-        private Request request;
-
-        public Handler(Request request) {
-            this.request = request;
-        }
-
-        @Override
-        public void run() {
-
-        }
-    }
 }

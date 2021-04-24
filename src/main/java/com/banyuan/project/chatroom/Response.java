@@ -17,6 +17,16 @@ public class Response implements Serializable {
 
     private byte[] content;
 
+
+
+    public Response(String from, String to, ResponseType type, String text, byte[] content) {
+        this.from = from;
+        this.to = to;
+        this.type = type;
+        this.text = text;
+        this.content = content;
+    }
+
     public Response(String from, String to, ResponseType type, String text) {
         this.from = from;
         this.to = to;
@@ -30,14 +40,13 @@ public class Response implements Serializable {
         this.type = type;
     }
 
-    public Response(String from, String to, ResponseType type, String expression, boolean isWhisper, String text, byte[] content) {
+    public Response(String from, String to, ResponseType type, String expression, boolean isWhisper, String text) {
         this.from = from;
         this.to = to;
         this.type = type;
         this.expression = expression;
         this.isWhisper = isWhisper;
         this.text = text;
-        this.content = content;
     }
 
     public String getFrom() {
@@ -73,6 +82,7 @@ public class Response implements Serializable {
         return "Response{" +
                 "from='" + from + '\'' +
                 ", to='" + to + '\'' +
+                ", type=" + type +
                 '}';
     }
 }

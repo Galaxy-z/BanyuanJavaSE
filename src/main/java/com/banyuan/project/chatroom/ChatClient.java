@@ -17,10 +17,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 
-import static com.banyuan.project.chatroom.RequestType.LOGIN;
-import static com.banyuan.project.chatroom.ResponseType.REPEATED_USERNAME;
+import static com.banyuan.project.chatroom.RequestType.*;
+import static com.banyuan.project.chatroom.ResponseType.*;
 
 public class ChatClient {
+    private final int MAX_PACKAGE_SIZE = 102400;
 
     private JFrame frame;
     private JTextField msgInputField;
@@ -28,19 +29,39 @@ public class ChatClient {
     private JTextPane onlineUserNumberPane;
     private JButton logInButton;
     private JButton userSetButton;
+    private JButton logOutButton;
+    private JButton msgSendButton;
+    private JButton fileSendButton;
+    private JComboBox toUserComboBox;
+    private JComboBox expressionComboBox;
+    private JCheckBox whisperCheckBox;
     private JDialog userSetDialog;
     private JDialog connectSetDialog;
 
-    private List<String> infoList;
+    private LinkedList<String> infoList;
 
     private String userName;
     private String ip;
     private int port;
 
+    private File selectedFile;
+
+
+
+
+    private LinkedBlockingQueue<Response> responseQueue;
+
     /**
      * Launch the application.
      */
     public static void main(String[] args) {
+        try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (ClassNotFoundException | InstantiationException | IllegalAccessException
+                | UnsupportedLookAndFeelException e) {
+
+            e.printStackTrace();
+        }
         EventQueue.invokeLater(new Runnable() {
             public void run() {
                 try {
@@ -77,7 +98,6 @@ public class ChatClient {
         userSetButton.setFont(new Font("Lucida Grande", Font.PLAIN, 16));
         userSetButton.setBounds(6, 6, 82, 35);
         frame.getContentPane().add(userSetButton);
-        // TODO 用户设置
         userSetButton.addActionListener(e -> {
             if (userSetDialog == null) {
                 userSetDialog = new UserSet(frame);
@@ -103,7 +123,7 @@ public class ChatClient {
         logInButton.setBounds(210, 6, 60, 35);
         logInButton.setEnabled(false);
         frame.getContentPane().add(logInButton);
-        logInButton.addActionListener(e->{
+        logInButton.addActionListener(e -> {
             new Thread(new netEngine()).start();
             userSetButton.setEnabled(false);
             connectSetButton.setEnabled(false);
@@ -115,7 +135,7 @@ public class ChatClient {
         quitButton.setBounds(362, 6, 82, 35);
         frame.getContentPane().add(quitButton);
 
-        JButton logOutButton = new JButton("注销");
+        logOutButton = new JButton("注销");
         logOutButton.setForeground(new Color(95, 158, 160));
         logOutButton.setFont(new Font("Lucida Grande", Font.PLAIN, 16));
         logOutButton.setBounds(272, 6, 60, 35);
@@ -145,16 +165,23 @@ public class ChatClient {
         msgSendLabel.setBounds(6, 495, 65, 16);
         frame.getContentPane().add(msgSendLabel);
 
-        JButton msgSendButton = new JButton("发送");
+        msgSendButton = new JButton("发送");
         msgSendButton.setBounds(343, 490, 101, 29);
         frame.getContentPane().add(msgSendButton);
         msgSendButton.setEnabled(false);
+        msgSendButton.addActionListener(e -> {
+            try {
+                responseQueue.put(new Response(userName, userName, SEND_CLIENT_MSG));
+            } catch (InterruptedException interruptedException) {
+                interruptedException.printStackTrace();
+            }
+        });
 
         JLabel lblNewLabel_1 = new JLabel("发送至：");
         lblNewLabel_1.setBounds(6, 467, 61, 16);
         frame.getContentPane().add(lblNewLabel_1);
 
-        JComboBox toUserComboBox = new JComboBox();
+        toUserComboBox = new JComboBox();
         toUserComboBox.setBounds(68, 463, 82, 27);
         frame.getContentPane().add(toUserComboBox);
 
@@ -162,28 +189,60 @@ public class ChatClient {
         expressionLabel.setBounds(153, 467, 44, 16);
         frame.getContentPane().add(expressionLabel);
 
-        JComboBox expressionComboBox = new JComboBox();
+        expressionComboBox = new JComboBox<String>();
         expressionComboBox.setBounds(193, 463, 77, 27);
         frame.getContentPane().add(expressionComboBox);
+        expressionComboBox.addItem("");
+        expressionComboBox.addItem("微笑");
+        expressionComboBox.addItem("生气");
+        expressionComboBox.addItem("疑惑");
+        expressionComboBox.addItem("鄙视");
+        expressionComboBox.addItem("潇洒");
+        expressionComboBox.addItem("痛苦");
 
-        JCheckBox whisperCheckBox = new JCheckBox("悄悄话");
+
+        whisperCheckBox = new JCheckBox("悄悄话");
         whisperCheckBox.setBounds(266, 463, 71, 23);
         frame.getContentPane().add(whisperCheckBox);
 
         onlineUserNumberPane = new JTextPane();
         onlineUserNumberPane.setForeground(new Color(105, 105, 105));
         onlineUserNumberPane.setFont(new Font("Lucida Grande", Font.PLAIN, 11));
-        onlineUserNumberPane.setText("3人在线");
+        onlineUserNumberPane.setText("未连接服务器");
         onlineUserNumberPane.setBackground(new Color(143, 188, 143));
         onlineUserNumberPane.setBounds(6, 523, 65, 16);
         frame.getContentPane().add(onlineUserNumberPane);
 
-        JButton sendFileBox = new JButton("发送文件");
-        sendFileBox.setBounds(343, 462, 101, 29);
-        frame.getContentPane().add(sendFileBox);
+        fileSendButton = new JButton("发送文件");
+        fileSendButton.setBounds(343, 462, 101, 29);
+        frame.getContentPane().add(fileSendButton);
         frame.setBounds(100, 100, 450, 573);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        sendFileBox.setEnabled(false);
+        fileSendButton.setEnabled(false);
+        fileSendButton.addActionListener(e -> {
+            selectedFile = chooseFile();
+            if (selectedFile == null) {
+                displayInfo("未选择文件");
+            } else {
+                try {
+                    responseQueue.put(new Response(userName, userName, SEND_FILE_ACCEPT_REQUEST));
+                } catch (InterruptedException interruptedException) {
+                    interruptedException.printStackTrace();
+                }
+            }
+        });
+    }
+
+    private File chooseFile() {
+        JFileChooser chooser = new JFileChooser();
+        int ret = chooser.showOpenDialog(frame);
+        if (ret == JFileChooser.APPROVE_OPTION) {
+            File file = chooser.getSelectedFile();
+            displayInfo("需要发送的文件路径：\n         " + file.getAbsolutePath());
+            displayInfo("");
+            return file;
+        }
+        return null;
     }
 
     private class UserSet extends JDialog {
@@ -204,7 +263,7 @@ public class ChatClient {
             }
             {
                 userNameTextField = new JTextField();
-                userNameTextField.setText("gg");
+                userNameTextField.setText("aaa");
                 userNameTextField.setBounds(126, 51, 130, 26);
                 contentPanel.add(userNameTextField);
                 userNameTextField.setColumns(10);
@@ -318,13 +377,32 @@ public class ChatClient {
         infoDisplayArea.setText(sb.toString());
     }
 
+    private synchronized void displayInfo(String info, boolean refresh) {
+        if (refresh) {
+
+            infoList.removeLast();
+        }
+        displayInfo(info);
+    }
+
     private class netEngine implements Runnable {
 
         private Set<String> onlineUserSet;
 
-        private LinkedBlockingQueue<Response> responseQueue;
 
         private ExecutorService handlerThreadPool;
+
+        private ObjectOutputStream out;
+
+        private int displayTotal;
+
+        private int displayPart;
+
+        private File tempFileDir;
+
+        private File saveDirectory;
+
+        private String fileTo;
 
         @Override
         public void run() {
@@ -334,6 +412,9 @@ public class ChatClient {
             try {
                 connectServer();
             } catch (IOException | ClassNotFoundException e) {
+                if (e instanceof IOException) {
+                    displayInfo("无法连接服务器，请等待服务器启动后重试");
+                }
                 e.printStackTrace();
             }
         }
@@ -344,7 +425,7 @@ public class ChatClient {
         }
 
         private void initHandlerThreadPool() {
-            handlerThreadPool = Executors.newSingleThreadExecutor();
+            handlerThreadPool = Executors.newFixedThreadPool(2);
             displayInfo("响应处理线程池初始化完成");
         }
 
@@ -368,14 +449,17 @@ public class ChatClient {
         }
 
         private void connectServer() throws IOException, ClassNotFoundException {
+            displayInfo("连接服务器……");
             Socket socket = new Socket(ip, port);
             ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
-            ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+            out = new ObjectOutputStream(socket.getOutputStream());
             // 发送登录消息
             displayInfo("登录中……");
             out.writeObject(new Request(userName, "server", LOGIN));
+            // 接受响应消息
             Response loginResponse = (Response) in.readObject();
             System.out.println(loginResponse);
+            // 用户名重复重置用户名，返回结束该线程
             if (loginResponse.getType() == REPEATED_USERNAME) {
                 displayInfo("用户名重复，请更换用户名重新登录");
                 userName = null;
@@ -384,46 +468,372 @@ public class ChatClient {
                 return;
             }
             displayInfo("登录成功");
+            frame.setTitle(userName);
+            logInButton.setEnabled(false);
+            logOutButton.setEnabled(true);
+            msgSendButton.setEnabled(true);
+            fileSendButton.setEnabled(true);
+
 
             // 启动侦听线程
             new Thread(() -> {
-
                 while (true) {
                     try {
                         Response response = (Response) in.readObject();
-                        if (response != null)
+                        if (response != null) {
+                            System.out.println(response);
                             responseQueue.put(response);
+                        }
                     } catch (IOException | InterruptedException | ClassNotFoundException e) {
                         e.printStackTrace();
-                        break;
+                        if (e instanceof IOException) {
+                            break;
+                        }
                     }
-//                    finally {
-//                        displayInfo("服务器已断开连接");
-//                        ok = false;
-//                    }
-                    displayInfo("服务器已断开连接");
                 }
+                displayInfo("服务器异常，已断开连接");
             }).start();
         }
-    }
 
-    private class Handler implements Runnable {
-        private Response response;
 
-        public Handler(Response response) {
-            this.response = response;
-        }
+        private class Handler implements Runnable {
+            private Response response;
 
-        @Override
-        public void run() {
-            switch (response.getType()){
-                case NEW_USER_LIST:
-                    String[] users = response.getText().split(",");
-                    onlineUserNumberPane.setText(users.length+"人在线");
+            public Handler(Response response) {
+                this.response = response;
+            }
+
+            @Override
+            public void run() {
+                switch (response.getType()) {
+                    // 用户目录更新
+                    case NEW_USER_LIST:
+                        updateUserList();
+                        break;
+
+                    case SEND_CLIENT_MSG:
+                        try {
+                            clientSendMsg();
+                            break;
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+
+                    case INCOMING_MSG:
+                        try {
+                            displayAndSendMsg(response, false);
+                            break;
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+
+                    case SEND_FILE_ACCEPT_REQUEST:
+                        try {
+                            sendFileAcceptRequest();
+                            break;
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+
+                    case ASK_FILE_ACCEPT:
+                        try {
+                            confirmAcceptFile();
+                            break;
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+
+                    case TARGET_REFUSE_FILE:
+                        selectedFile = null;
+                        displayInfo(response.getFrom() + "拒绝接收文件");
+                        break;
+
+                    case TARGET_ACCEPT_FILE:
+                        try {
+                            verifyAcceptFile();
+                            break;
+                        } catch (IOException | InterruptedException e) {
+                            e.printStackTrace();
+                        }
+
+                    case VERIFICATION_FAILED:
+                        displayInfo(response.getFrom() + "取消了文件传输");
+                        break;
+
+                    case CREATE_FILE_PACKAGE:
+                        createFilePackage();
+                        break;
+
+                    case FILE_PACKAGE:
+                        try {
+                            displayProcess();
+                            writeTempFile();
+                            break;
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+
+                    case COMBINE_FILES:
+                        displayInfo("合并文件中……");
+                        combineFiles();
+                        displayInfo("文件下载完成");
+                        break;
+
+
+
+                    default:
+                        displayInfo(response.getType() + "");
+
+                }
+
+            }
+
+            private void cleanTemp() {
+                File[] tempfiles = tempFileDir.listFiles();
+                for (File tempfile : tempfiles) {
+                    tempfile.delete();
+                }
+                tempFileDir.delete();
+                displayTotal = 0;
+                displayPart = 0;
+                tempFileDir = null;
+                saveDirectory = null;
+
+            }
+
+            private void combineFiles() {
+                String fileName = response.getText();
+                File fullFile = new File(saveDirectory, fileName);
+                byte[] b = new byte[1024];
+                for (int i = 1; i <= displayTotal; i++) {
+                    String partFilePath = tempFileDir.getAbsolutePath() + File.separator + fileName + ".part" + i;
+                    File partFile = new File(partFilePath);
+                    try (BufferedOutputStream bos = new BufferedOutputStream(
+                            new FileOutputStream(fullFile, true));
+                         BufferedInputStream bis = new BufferedInputStream(new FileInputStream(partFile))) {
+                        int len;
+                        while ((len = bis.read(b)) != -1) {
+                            bos.write(b, 0, len);
+                            bos.flush();
+                        }
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+
+                }
+                cleanTemp();
+            }
+
+            private void displayProcess() {
+                String[] args = response.getText().split(",");
+                displayTotal = Integer.parseInt(args[2]);
+                synchronized (Handler.class) {
+                    displayPart++;
+                }
+                String process = "下载进度：[";
+                double ratio = (double) displayPart / displayTotal;
+                int finishedNumber = (int) (ratio * 10);
+                for (int i = 0; i < finishedNumber; i++) {
+                    process += "#";
+                }
+                for (int i = 0; i < 10 - finishedNumber; i++) {
+                    process += "-";
+                }
+                process += "] ";
+                double percentage = ratio * 100;
+                process += String.format("%.1f", percentage);
+                process += "%";
+                displayInfo(process, true);
+
+            }
+
+            private void writeTempFile() throws InterruptedException {
+                String[] args = response.getText().split(",");
+                String fileName = args[0];
+                int part = Integer.parseInt(args[1]);
+                int total = Integer.parseInt(args[2]);
+                tempFileDir = new File(saveDirectory, "temp");
+
+                if (!tempFileDir.exists()) {//如果文件夹不存在
+                    tempFileDir.mkdir();//创建文件夹
+                }
+                File tempFile = new File(tempFileDir, fileName + ".part" + part);
+
+                try (BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(tempFile))) {
+                    bos.write(response.getContent());
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+
+                if (part == total){
+                    responseQueue.put(new Response(userName,userName,COMBINE_FILES,fileName));
+                }
+
+            }
+
+            private void createFilePackage() {
+                try (BufferedInputStream bis = new BufferedInputStream(new FileInputStream(selectedFile))) {
+
+                    String[] args = response.getText().split(",");
+                    int part = Integer.parseInt(args[1]);
+                    int total = Integer.parseInt(args[2]);
+                    int length = Integer.parseInt(args[3]);
+                    byte[] data = new byte[length];
+                    bis.skip((long) (part - 1) * MAX_PACKAGE_SIZE);
+                    bis.read(data, 0, length);
+
+                    synchronized (Handler.class) {
+                        out.writeObject(new Request(userName, fileTo, SEND_FILE_PACKAGE, response.getText(), data));
+                        displayInfo("第" + part + "个数据包发送完毕，共" + total + "个", true);
+                    }
+
+
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+
+            }
+
+            private void createFileTransferTask() throws InterruptedException {
+                int packageCount = (int) (selectedFile.length() / MAX_PACKAGE_SIZE + 1);
+                int finalSize = (int) (selectedFile.length() - (packageCount - 1) * MAX_PACKAGE_SIZE);
+                for (int i = 1; i <= packageCount; i++) {
+                    if (i < packageCount) {
+                        String text = selectedFile.getName() + "," + i + "," + packageCount + "," + MAX_PACKAGE_SIZE;
+                        responseQueue.put(new Response(userName, userName, CREATE_FILE_PACKAGE, text));
+                    } else {
+                        String text = selectedFile.getName() + "," + i + "," + packageCount + "," + finalSize;
+                        responseQueue.put(new Response(userName, userName, CREATE_FILE_PACKAGE, text));
+                    }
+                }
+            }
+
+            private void verifyAcceptFile() throws IOException, InterruptedException {
+                String from = response.getFrom();
+                int incomingVerificationCode = (from + response.getText()).hashCode();
+                int correntVerificationCode = (fileTo + selectedFile.getName()).hashCode();
+                if (incomingVerificationCode != correntVerificationCode) {
+                    out.writeObject(new Request(userName, from, SEND_VERIFICATION_FAILED));
+                } else {
+                    createFileTransferTask();
+                }
 
 
             }
 
+            private void confirmAcceptFile() throws IOException {
+                String from = response.getFrom();
+                String[] args = response.getText().split(",");
+                String fileName = args[0];
+                double fileSize = Integer.parseInt(args[1]);
+                String sizeUnit;
+                if (fileSize < 1024) {
+                    sizeUnit = "byte";
+                } else {
+                    fileSize /= 1024;
+                    if (fileSize < 1024) {
+                        sizeUnit = "kB";
+                    } else {
+                        fileSize /= 1024;
+                        sizeUnit = "MB";
+                    }
+                }
+                String displaySize = String.format("%.1f", fileSize);
+
+                int opt = JOptionPane.showConfirmDialog(frame,
+                        from + "请求向你发送文件【" + fileName + "】，文件大小为" +
+                                displaySize + sizeUnit + "，是否接收？",
+                        "文件接收", JOptionPane.YES_NO_OPTION);
+                if (opt == JOptionPane.YES_OPTION) {
+                    JFileChooser chooser = new JFileChooser();
+                    chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+                    int ret = chooser.showOpenDialog(frame);
+                    if (ret == JFileChooser.APPROVE_OPTION) {
+                        saveDirectory = chooser.getSelectedFile();
+                        displayInfo("文件保存目录：\n         " + saveDirectory.getAbsolutePath());
+                        displayInfo("");
+                        Request request = new Request(userName, from, ACCEPT_FILE, fileName);
+                        out.writeObject(request);
+                    } else {
+                        Request request = new Request(userName, from, REFUSE_FILE, fileName);
+                        out.writeObject(request);
+                    }
+                } else {
+                    Request request = new Request(userName, from, REFUSE_FILE, fileName);
+                    out.writeObject(request);
+                }
+            }
+
+            private void sendFileAcceptRequest() throws IOException {
+                fileTo = (String) toUserComboBox.getSelectedItem();
+                if (fileTo.equals("所有人")) {
+                    fileTo = null;
+                    displayInfo("不能给所有人发送文件");
+                } else {
+                    String text = selectedFile.getName() + "," + selectedFile.length();
+                    out.writeObject(new Request(userName, fileTo, SEND_ASK_FILE_ACCEPT, text));
+                }
+            }
+
+            // 客户端向外发送信息
+            private void clientSendMsg() throws IOException {
+                String toUser = (String) toUserComboBox.getSelectedItem();
+                boolean whisper = whisperCheckBox.isSelected();
+                String msg = msgInputField.getText();
+                if (msg.equals("")) {
+                    displayInfo("消息不能为空！");
+                } else if (toUser.equals("所有人") && whisper) {
+                    displayInfo("不能向所有人发悄悄话！");
+                } else {
+
+                    displayAndSendMsg(
+                            new Response(userName, toUser, OUTGOING_MSG,
+                                    (String) expressionComboBox.getSelectedItem(),
+                                    whisperCheckBox.isSelected(), msg), true);
+
+                }
+                msgInputField.setText("");
+            }
+
+            // 显示信息，可选发送
+            private void displayAndSendMsg(Response response, boolean send) throws IOException {
+                String from = response.getFrom();
+                String to = response.getTo();
+                String expression = response.getExpression();
+                boolean whisper = response.isWhisper();
+                String msg = response.getText();
+
+                String tempFrom = from.equals(userName) ? "你" : from;
+
+                String s = (whisper ? "*悄悄话*" : "") +
+                        (tempFrom.equals("server") ? "服务器" : tempFrom) +
+                        (expression.equals("") ? "" : (expression + "地")) +
+                        "对" +
+                        (to.equals(userName) ? "你" : to)
+                        + "说：" + msg;
+                displayInfo(s);
+
+                if (send) {
+                    out.writeObject(new Request(from, to, SEND_MSG, expression, whisper, msg));
+                }
+            }
+
+            private void updateUserList() {
+                // 字符串解析
+                String[] users = response.getText().split(",");
+                onlineUserNumberPane.setText(users.length + "人在线");
+                toUserComboBox.removeAllItems();
+                toUserComboBox.addItem("所有人");
+                for (String user : users) {
+                    if (!user.equals(userName)) {
+                        toUserComboBox.addItem(user);
+                    }
+                }
+            }
         }
+
+
     }
+
+
 }
