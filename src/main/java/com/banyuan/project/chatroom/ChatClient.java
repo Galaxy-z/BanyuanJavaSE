@@ -440,7 +440,7 @@ public class ChatClient {
                 connectServer();
             } catch (IOException | ClassNotFoundException e) {
                 if (e instanceof IOException) {
-                    displayInfo("无法连接服务器，请等待服务器启动后重试");
+                    displayInfo("无法连接服务器，请等待服务器启动后重试！");
                 }
                 e.printStackTrace();
             }

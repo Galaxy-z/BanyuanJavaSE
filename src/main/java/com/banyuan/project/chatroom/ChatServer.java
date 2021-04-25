@@ -9,6 +9,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.io.*;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.text.SimpleDateFormat;
@@ -150,7 +151,7 @@ public class ChatServer {
         startServiceButton.addActionListener((e) -> {
             // 启动网络引擎线程
             new Thread(new NetEngine()).start();
-            displayInfo("服务器启动中，端口号：" + port);
+            displayInfo("服务器启动中");
             startServiceButton.setEnabled(false);
             portSetButton.setEnabled(false);
             stopServiceButton.setEnabled(true);
@@ -329,6 +330,9 @@ public class ChatServer {
 
         // 启动服务
         private void runService() throws IOException {
+            displayInfo("获取ip地址……");
+            InetAddress addr = InetAddress.getLocalHost();
+            displayInfo("本机局域网ip地址："+addr.getHostAddress()+"，端口："+port);
             // 初始化server socket，用户-输出流映射表
             ServerSocket serverSocket = new ServerSocket(port);
             userOutMap = new ConcurrentHashMap<>();
