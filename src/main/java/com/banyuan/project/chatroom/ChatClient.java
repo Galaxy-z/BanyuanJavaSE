@@ -566,7 +566,7 @@ public class ChatClient {
                         try {
                             confirmAcceptFile();
                             break;
-                        } catch (IOException e) {
+                        } catch (IOException | InterruptedException e) {
                             e.printStackTrace();
                         }
                     // 对方拒绝文件接收
@@ -601,6 +601,11 @@ public class ChatClient {
                         }
                     // 合并文件
                     case COMBINE_FILES:
+                        try {
+                            Thread.sleep(1000);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
                         displayInfo("合并文件中……");
                         combineFiles();
                         displayInfo("文件下载完成");
@@ -770,7 +775,7 @@ public class ChatClient {
             }
 
             // 确认接收文件对话框
-            private void confirmAcceptFile() throws IOException {
+            private void confirmAcceptFile() throws IOException, InterruptedException {
                 String from = response.getFrom();
                 String[] args = response.getText().split(",");
                 String fileName = args[0];
@@ -794,14 +799,21 @@ public class ChatClient {
                         from + "请求向你发送文件【" + fileName + "】，文件大小为" +
                                 displaySize + sizeUnit + "，是否接收？",
                         "文件接收", JOptionPane.YES_NO_OPTION);
+
                 if (opt == JOptionPane.YES_OPTION) {
-                    JFileChooser chooser = new JFileChooser();
-                    chooser.setDialogTitle("请选择文件保存目录");
-                    chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-                    int ret = chooser.showOpenDialog(frame);
+                    // TODO: 2021/4/25
+                    Thread.sleep(100);
+                    JFileChooser dirChooser = new JFileChooser();
+                    Thread.sleep(100);
+                    dirChooser.setDialogTitle("请选择文件保存目录");
+                    Thread.sleep(100);
+                    dirChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+                    Thread.sleep(100);
+                    int ret = dirChooser.showOpenDialog(frame);
+
                     // 获取文件保存目录
                     if (ret == JFileChooser.APPROVE_OPTION) {
-                        saveDirectory = chooser.getSelectedFile();
+                        saveDirectory = dirChooser.getSelectedFile();
                         displayInfo("文件保存目录：\n         " + saveDirectory.getAbsolutePath());
                         displayInfo("");
                         Request request = new Request(userName, from, ACCEPT_FILE, fileName);
