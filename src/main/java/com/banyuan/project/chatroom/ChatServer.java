@@ -87,6 +87,7 @@ public class ChatServer {
         frame.setFont(new Font("Lucida Grande", Font.PLAIN, 13));
         frame.setTitle("服务端");
         frame.setBounds(100, 100, 516, 462);
+        frame.setLocationRelativeTo(null);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.getContentPane().setLayout(null);
         frame.setLocation(500, 200);
@@ -115,7 +116,7 @@ public class ChatServer {
             @Override
             public void keyPressed(KeyEvent e) {
                 int k = e.getKeyCode();
-                if(k == KeyEvent.VK_ENTER)
+                if (k == KeyEvent.VK_ENTER)
                     msgSendButton.doClick();
             }
         });
@@ -202,7 +203,6 @@ public class ChatServer {
         frame.getContentPane().add(onlineUserNumberPane);
     }
 
-
     // 端口设置窗口
     private class PortSet extends JDialog {
         private final JPanel contentPanel = new JPanel();
@@ -213,6 +213,7 @@ public class ChatServer {
             setTitle("端口设置");
             setBounds(100, 100, 310, 195);
             setLocation(600, 300);
+            setLocationRelativeTo(owner);
             getContentPane().setLayout(new BorderLayout());
             contentPanel.setBorder(new EmptyBorder(5, 5, 5, 5));
             getContentPane().add(contentPanel, BorderLayout.CENTER);
@@ -275,10 +276,8 @@ public class ChatServer {
     // 网络引擎(服务器主线程)
     private class NetEngine implements Runnable {
 
-
         // 用户-输出流映射表
         private ConcurrentHashMap<String, ObjectOutputStream> userOutMap;
-
 
         // handler线程池
         private ExecutorService handlerThreadPool;
@@ -332,7 +331,7 @@ public class ChatServer {
         private void runService() throws IOException {
             displayInfo("获取ip地址……");
             InetAddress addr = InetAddress.getLocalHost();
-            displayInfo("本机局域网ip地址："+addr.getHostAddress()+"，端口："+port);
+            displayInfo("本机局域网ip地址：" + addr.getHostAddress() + "，端口：" + port);
             // 初始化server socket，用户-输出流映射表
             ServerSocket serverSocket = new ServerSocket(port);
             userOutMap = new ConcurrentHashMap<>();
@@ -355,12 +354,16 @@ public class ChatServer {
                         // 用户名重复
                         if (userOutMap.containsKey(userName)) {
                             // 响应REPEATED_USERNAME
-                            out.writeObject(new Response("server", null, REPEATED_USERNAME));
+                            synchronized (Handler.class) {
+                                out.writeObject(new Response("server", null, REPEATED_USERNAME));
+                            }
                         }
                         // 新用户名
                         else {
                             // 响应OK
-                            out.writeObject(new Response("server", null, OK));
+                            synchronized (Handler.class) {
+                                out.writeObject(new Response("server", null, OK));
+                            }
                             // 存入用户名和输出流
                             userOutMap.put(userName, out);
                             // 请求刷新用户列表
@@ -428,7 +431,7 @@ public class ChatServer {
                             e.printStackTrace();
                         }
 
-                    // 服务器发送信息
+                        // 服务器发送信息
                     case SEND_SERVER_MSG:
                         try {
                             serverSendMsg();
@@ -437,7 +440,7 @@ public class ChatServer {
                             e.printStackTrace();
                         }
 
-                    // 转发信息
+                        // 转发信息
                     case SEND_MSG:
                         try {
                             sendMsg(request);
@@ -446,7 +449,7 @@ public class ChatServer {
                             e.printStackTrace();
                         }
 
-                    // 转发简单信息
+                        // 转发简单信息
                     case SEND_ASK_FILE_ACCEPT:
                     case ACCEPT_FILE:
                     case REFUSE_FILE:
@@ -458,7 +461,7 @@ public class ChatServer {
                             e.printStackTrace();
                         }
 
-                    // 转发文件数据包
+                        // 转发文件数据包
                     case SEND_FILE_PACKAGE:
                         try {
                             sendFilePackage();
@@ -466,7 +469,7 @@ public class ChatServer {
                         } catch (IOException e) {
                             e.printStackTrace();
                         }
-                    // 用户注销
+                        // 用户注销
                     case LOGOUT:
                         try {
                             removeUser(request.getFrom());
@@ -479,7 +482,9 @@ public class ChatServer {
                         Collection<ObjectOutputStream> outs = userOutMap.values();
                         for (ObjectOutputStream out : outs) {
                             try {
-                                out.writeObject(new Response("server","public",SERVICE_SHUTDOWN));
+                                synchronized (Handler.class) {
+                                    out.writeObject(new Response("server", "public", SERVICE_SHUTDOWN));
+                                }
                             } catch (IOException e) {
                                 e.printStackTrace();
                             }
@@ -490,13 +495,12 @@ public class ChatServer {
                 }
             }
 
-
             // 转发文件数据包
             private void sendFilePackage() throws IOException {
                 String to = request.getTo();
                 ObjectOutputStream out = userOutMap.get(to);
-                Response response = new Response(request.getFrom(),to,FILE_PACKAGE, request.getText(),request.getContent());
-                synchronized (Handler.class){
+                Response response = new Response(request.getFrom(), to, FILE_PACKAGE, request.getText(), request.getContent());
+                synchronized (Handler.class) {
                     out.writeObject(response);
                 }
             }
@@ -526,7 +530,9 @@ public class ChatServer {
                 }
                 Response response = new Response(from, to, responseType, text);
                 ObjectOutputStream out = userOutMap.get(to);
-                out.writeObject(response);
+                synchronized (Handler.class) {
+                    out.writeObject(response);
+                }
             }
 
             // 服务器向外发送信息
@@ -560,14 +566,18 @@ public class ChatServer {
                 // 悄悄话单独发
                 if (whisper) {
                     ObjectOutputStream out = userOutMap.get(to);
-                    out.writeObject(response);
+                    synchronized (Handler.class) {
+                        out.writeObject(response);
+                    }
 
                 } else {
                     Collection<ObjectOutputStream> outs = userOutMap.values();
                     for (ObjectOutputStream out : outs) {
                         // 不向发来信息的用户发送
                         if (out != userOutMap.get(from)) {
-                            out.writeObject(response);
+                            synchronized (Handler.class) {
+                                out.writeObject(response);
+                            }
                         }
                     }
                 }
@@ -592,12 +602,13 @@ public class ChatServer {
                 }
                 // 广播
                 for (ObjectOutputStream out : outs) {
-                    out.writeObject(new Response("server", "all", NEW_USER_LIST, (sb.toString())));
+                    synchronized (Handler.class) {
+                        out.writeObject(new Response("server", "all", NEW_USER_LIST, (sb.toString())));
+                    }
                 }
 
             }
         }
     }
-
 
 }

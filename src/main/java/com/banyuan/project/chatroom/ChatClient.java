@@ -1,13 +1,11 @@
 package com.banyuan.project.chatroom;
 
-import jdk.swing.interop.SwingInterOpUtils;
+
 
 import java.awt.*;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
-import java.awt.event.ActionListener;
-import java.awt.event.ActionEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.io.*;
@@ -15,8 +13,6 @@ import java.net.Socket;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.LinkedList;
-import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -49,9 +45,6 @@ public class ChatClient {
     private int port;
 
     private File selectedFile;
-
-
-
 
     private LinkedBlockingQueue<Response> responseQueue;
 
@@ -95,6 +88,7 @@ public class ChatClient {
         frame.setTitle("客户端");
         frame.getContentPane().setBackground(new Color(143, 188, 143));
         frame.getContentPane().setLayout(null);
+        frame.setLocation(500, 300);
 
         userSetButton = new JButton("用户设置");
         userSetButton.setForeground(new Color(100, 149, 237));
@@ -138,7 +132,7 @@ public class ChatClient {
         quitButton.setFont(new Font("Lucida Grande", Font.PLAIN, 16));
         quitButton.setBounds(362, 6, 82, 35);
         frame.getContentPane().add(quitButton);
-        quitButton.addActionListener(e->{
+        quitButton.addActionListener(e -> {
             System.exit(0);
         });
 
@@ -148,9 +142,9 @@ public class ChatClient {
         logOutButton.setBounds(272, 6, 60, 35);
         logOutButton.setEnabled(false);
         frame.getContentPane().add(logOutButton);
-        logOutButton.addActionListener(e->{
+        logOutButton.addActionListener(e -> {
             try {
-                responseQueue.put(new Response(userName,userName,SEND_LOGOUT));
+                responseQueue.put(new Response(userName, userName, SEND_LOGOUT));
             } catch (InterruptedException interruptedException) {
                 interruptedException.printStackTrace();
             }
@@ -180,8 +174,8 @@ public class ChatClient {
             @Override
             public void keyPressed(KeyEvent e) {
                 int k = e.getKeyCode();
-                if(k == KeyEvent.VK_ENTER)
-                msgSendButton.doClick();
+                if (k == KeyEvent.VK_ENTER)
+                    msgSendButton.doClick();
             }
         });
 
@@ -224,7 +218,6 @@ public class ChatClient {
         expressionComboBox.addItem("潇洒");
         expressionComboBox.addItem("痛苦");
 
-
         whisperCheckBox = new JCheckBox("悄悄话");
         whisperCheckBox.setBounds(266, 463, 71, 23);
         frame.getContentPane().add(whisperCheckBox);
@@ -240,7 +233,7 @@ public class ChatClient {
         fileSendButton = new JButton("发送文件");
         fileSendButton.setBounds(343, 462, 101, 29);
         frame.getContentPane().add(fileSendButton);
-        frame.setBounds(100, 100, 450, 573);
+        frame.setBounds(500, 200, 450, 573);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         fileSendButton.setEnabled(false);
         fileSendButton.addActionListener(e -> {
@@ -279,6 +272,7 @@ public class ChatClient {
         public UserSet(JFrame owner) {
             super(owner, "用户设置", true);
             setBounds(100, 100, 293, 196);
+            setLocationRelativeTo(owner);
             getContentPane().setLayout(new BorderLayout());
             contentPanel.setBorder(new EmptyBorder(5, 5, 5, 5));
             getContentPane().add(contentPanel, BorderLayout.CENTER);
@@ -332,6 +326,7 @@ public class ChatClient {
         public ConnectionSet(JFrame owner) {
             super(owner, "连接设置", true);
             setBounds(100, 100, 306, 250);
+            setLocationRelativeTo(owner);
             getContentPane().setLayout(new BorderLayout());
             contentPanel.setBorder(new EmptyBorder(5, 5, 5, 5));
             getContentPane().add(contentPanel, BorderLayout.CENTER);
@@ -482,7 +477,9 @@ public class ChatClient {
             out = new ObjectOutputStream(socket.getOutputStream());
             // 发送登录消息
             displayInfo("登录中……");
-            out.writeObject(new Request(userName, "server", LOGIN));
+            synchronized (Handler.class) {
+                out.writeObject(new Request(userName, "server", LOGIN));
+            }
             // 接受响应消息
             Response loginResponse = (Response) in.readObject();
             System.out.println(loginResponse);
@@ -500,7 +497,6 @@ public class ChatClient {
             logOutButton.setEnabled(true);
             msgSendButton.setEnabled(true);
             fileSendButton.setEnabled(true);
-
 
             // 启动侦听线程
             new Thread(() -> {
@@ -521,7 +517,6 @@ public class ChatClient {
                 displayInfo("已与服务器断开连接");
             }).start();
         }
-
 
         private class Handler implements Runnable {
             private final Response response;
@@ -545,7 +540,7 @@ public class ChatClient {
                         } catch (IOException e) {
                             e.printStackTrace();
                         }
-                    // 有新消息
+                        // 有新消息
                     case INCOMING_MSG:
                         try {
                             displayAndSendMsg(response, false);
@@ -553,7 +548,7 @@ public class ChatClient {
                         } catch (IOException e) {
                             e.printStackTrace();
                         }
-                    // 发送文件接受询问请求
+                        // 发送文件接受询问请求
                     case SEND_FILE_ACCEPT_REQUEST:
                         try {
                             sendFileAcceptRequest();
@@ -561,7 +556,7 @@ public class ChatClient {
                         } catch (IOException e) {
                             e.printStackTrace();
                         }
-                    // 询问是否接收文件
+                        // 询问是否接收文件
                     case ASK_FILE_ACCEPT:
                         try {
                             confirmAcceptFile();
@@ -569,7 +564,7 @@ public class ChatClient {
                         } catch (IOException | InterruptedException e) {
                             e.printStackTrace();
                         }
-                    // 对方拒绝文件接收
+                        // 对方拒绝文件接收
                     case TARGET_REFUSE_FILE:
                         selectedFile = null;
                         displayInfo(response.getFrom() + "拒绝接收文件");
@@ -582,7 +577,7 @@ public class ChatClient {
                         } catch (IOException | InterruptedException e) {
                             e.printStackTrace();
                         }
-                    // 验证失败
+                        // 验证失败
                     case VERIFICATION_FAILED:
                         displayInfo(response.getFrom() + "取消了文件传输");
                         break;
@@ -599,7 +594,7 @@ public class ChatClient {
                         } catch (InterruptedException e) {
                             e.printStackTrace();
                         }
-                    // 合并文件
+                        // 合并文件
                     case COMBINE_FILES:
                         try {
                             Thread.sleep(1000);
@@ -620,13 +615,14 @@ public class ChatClient {
                             e.printStackTrace();
                         }
 
-
                 }
 
             }
 
             private void logOut() throws IOException {
-                out.writeObject(new Request(userName,"server",LOGOUT));
+                synchronized (Handler.class) {
+                    out.writeObject(new Request(userName, "server", LOGOUT));
+                }
                 out.close();
                 out = null;
             }
@@ -714,8 +710,8 @@ public class ChatClient {
                     e.printStackTrace();
                 }
 
-                if (part == total){
-                    responseQueue.put(new Response(userName,userName,COMBINE_FILES,fileName));
+                if (part == total) {
+                    responseQueue.put(new Response(userName, userName, COMBINE_FILES, fileName));
                 }
 
             }
@@ -736,7 +732,6 @@ public class ChatClient {
                         out.writeObject(new Request(userName, fileTo, SEND_FILE_PACKAGE, response.getText(), data));
                         displayInfo("第" + part + "个数据包发送完毕，共" + total + "个", true);
                     }
-
 
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -766,11 +761,12 @@ public class ChatClient {
                 int incomingVerificationCode = (from + response.getText()).hashCode();
                 int correntVerificationCode = (fileTo + selectedFile.getName()).hashCode();
                 if (incomingVerificationCode != correntVerificationCode) {
-                    out.writeObject(new Request(userName, from, SEND_VERIFICATION_FAILED));
+                    synchronized (Handler.class) {
+                        out.writeObject(new Request(userName, from, SEND_VERIFICATION_FAILED));
+                    }
                 } else {
                     createFileTransferTask();
                 }
-
 
             }
 
@@ -801,7 +797,6 @@ public class ChatClient {
                         "文件接收", JOptionPane.YES_NO_OPTION);
 
                 if (opt == JOptionPane.YES_OPTION) {
-                    // TODO: 2021/4/25
                     Thread.sleep(100);
                     JFileChooser dirChooser = new JFileChooser();
                     Thread.sleep(100);
@@ -817,14 +812,20 @@ public class ChatClient {
                         displayInfo("文件保存目录：\n         " + saveDirectory.getAbsolutePath());
                         displayInfo("");
                         Request request = new Request(userName, from, ACCEPT_FILE, fileName);
-                        out.writeObject(request);
+                        synchronized (Handler.class) {
+                            out.writeObject(request);
+                        }
                     } else {
                         Request request = new Request(userName, from, REFUSE_FILE, fileName);
-                        out.writeObject(request);
+                        synchronized (Handler.class) {
+                            out.writeObject(request);
+                        }
                     }
                 } else {
                     Request request = new Request(userName, from, REFUSE_FILE, fileName);
-                    out.writeObject(request);
+                    synchronized (Handler.class) {
+                        out.writeObject(request);
+                    }
                 }
             }
 
@@ -836,7 +837,9 @@ public class ChatClient {
                     displayInfo("不能给所有人发送文件");
                 } else {
                     String text = selectedFile.getName() + "," + selectedFile.length();
-                    out.writeObject(new Request(userName, fileTo, SEND_ASK_FILE_ACCEPT, text));
+                    synchronized (Handler.class) {
+                        out.writeObject(new Request(userName, fileTo, SEND_ASK_FILE_ACCEPT, text));
+                    }
                 }
             }
 
@@ -879,7 +882,9 @@ public class ChatClient {
                 displayInfo(s);
 
                 if (send) {
-                    out.writeObject(new Request(from, to, SEND_MSG, expression, whisper, msg));
+                    synchronized (Handler.class) {
+                        out.writeObject(new Request(from, to, SEND_MSG, expression, whisper, msg));
+                    }
                 }
             }
 
@@ -898,8 +903,6 @@ public class ChatClient {
             }
         }
 
-
     }
-
 
 }
