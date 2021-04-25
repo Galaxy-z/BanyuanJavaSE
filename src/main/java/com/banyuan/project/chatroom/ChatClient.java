@@ -59,13 +59,13 @@ public class ChatClient {
      * Launch the application.
      */
     public static void main(String[] args) {
-        try {
-            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-        } catch (ClassNotFoundException | InstantiationException | IllegalAccessException
-                | UnsupportedLookAndFeelException e) {
-
-            e.printStackTrace();
-        }
+//        try {
+//            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+//        } catch (ClassNotFoundException | InstantiationException | IllegalAccessException
+//                | UnsupportedLookAndFeelException e) {
+//
+//            e.printStackTrace();
+//        }
         EventQueue.invokeLater(new Runnable() {
             public void run() {
                 try {
@@ -206,11 +206,11 @@ public class ChatClient {
         frame.getContentPane().add(lblNewLabel_1);
 
         toUserComboBox = new JComboBox();
-        toUserComboBox.setBounds(68, 463, 82, 27);
+        toUserComboBox.setBounds(68, 463, 94, 27);
         frame.getContentPane().add(toUserComboBox);
 
         JLabel expressionLabel = new JLabel("表情：");
-        expressionLabel.setBounds(153, 467, 44, 16);
+        expressionLabel.setBounds(163, 467, 44, 16);
         frame.getContentPane().add(expressionLabel);
 
         expressionComboBox = new JComboBox<String>();
@@ -265,7 +265,7 @@ public class ChatClient {
         if (ret == JFileChooser.APPROVE_OPTION) {
             File file = chooser.getSelectedFile();
             displayInfo("需要发送的文件路径：\n         " + file.getAbsolutePath());
-            displayInfo("");
+            displayInfo("等待对方响应……");
             return file;
         }
         return null;
