@@ -651,6 +651,7 @@ public class ChatClient {
                 for (int i = 1; i <= displayTotal; i++) {
                     String partFilePath = tempFileDir.getAbsolutePath() + File.separator + fileName + ".part" + i;
                     File partFile = new File(partFilePath);
+                    displayInfo("正在合并第"+i+"个文件，共"+displayTotal+"个",true);
                     try (BufferedOutputStream bos = new BufferedOutputStream(
                             new FileOutputStream(fullFile, true));
                          BufferedInputStream bis = new BufferedInputStream(new FileInputStream(partFile))) {
