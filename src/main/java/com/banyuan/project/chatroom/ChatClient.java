@@ -32,6 +32,7 @@ public class ChatClient {
     private JButton logOutButton;
     private JButton msgSendButton;
     private JButton fileSendButton;
+    private JButton connectSetButton;
     private JComboBox toUserComboBox;
     private JComboBox expressionComboBox;
     private JCheckBox whisperCheckBox;
@@ -103,7 +104,7 @@ public class ChatClient {
             userSetDialog.setVisible(true);
         });
 
-        JButton connectSetButton = new JButton("连接设置");
+        connectSetButton = new JButton("连接设置");
         connectSetButton.setForeground(new Color(188, 143, 143));
         connectSetButton.setFont(new Font("Lucida Grande", Font.PLAIN, 16));
         connectSetButton.setBounds(90, 6, 82, 35);
@@ -607,13 +608,24 @@ public class ChatClient {
                         break;
 
                     case SEND_LOGOUT:
-                    case SERVICE_SHUTDOWN:
                         try {
                             logOut();
                             break;
                         } catch (IOException e) {
                             e.printStackTrace();
                         }
+                    case SERVICE_SHUTDOWN:
+                        try {
+                            out.close();
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                        out = null;
+                        userSetButton.setEnabled(true);
+                        connectSetButton.setEnabled(true);
+                        logOutButton.setEnabled(true);
+                        msgSendButton.setEnabled(false);
+                        fileSendButton.setEnabled(false);
 
                 }
 
@@ -625,6 +637,7 @@ public class ChatClient {
                 }
                 out.close();
                 out = null;
+                onlineUserNumberPane.setText("未连接服务器");
             }
 
             // 清理临时文件

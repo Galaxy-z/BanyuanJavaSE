@@ -12,6 +12,7 @@ import java.io.*;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.List;
@@ -24,6 +25,7 @@ import static com.banyuan.project.chatroom.RequestType.*;
 import static com.banyuan.project.chatroom.ResponseType.*;
 
 public class ChatServer {
+
 
     // UI
     private JFrame frame;
@@ -74,6 +76,7 @@ public class ChatServer {
     public ChatServer() {
         initialize();
     }
+
 
     /**
      * Initialize the contents of the frame.
@@ -164,18 +167,18 @@ public class ChatServer {
         stopServiceButton.setBounds(264, 6, 117, 39);
         stopServiceButton.setEnabled(false);
         frame.getContentPane().add(stopServiceButton);
-//        stopServiceButton.addActionListener(e->{
-//            try {
-//                requestQueue.put(new Request("server", "server", SHUTDOWN));
-//            } catch (InterruptedException interruptedException) {
-//                interruptedException.printStackTrace();
-//            }
-//            portSetButton.setEnabled(true);
-//            startServiceButton.setEnabled(true);
-//            msgSendButton.setEnabled(false);
-//            stopServiceButton.setEnabled(false);
-//        }
-//        );
+        stopServiceButton.addActionListener(e -> {
+                    try {
+                        requestQueue.put(new Request("server", "server", SHUTDOWN));
+                    } catch (InterruptedException interruptedException) {
+                        interruptedException.printStackTrace();
+                    }
+                    portSetButton.setEnabled(true);
+                    startServiceButton.setEnabled(true);
+                    msgSendButton.setEnabled(false);
+                    stopServiceButton.setEnabled(false);
+                }
+        );
 
         quitButton = new JButton("退出");
         quitButton.setForeground(new Color(250, 128, 114));
@@ -198,7 +201,7 @@ public class ChatServer {
         onlineUserNumberPane.setFont(new Font("Lucida Grande", Font.PLAIN, 11));
         onlineUserNumberPane.setForeground(new Color(105, 105, 105));
         onlineUserNumberPane.setBackground(new Color(222, 184, 135));
-        onlineUserNumberPane.setText("0人在线");
+        onlineUserNumberPane.setText("服务器未启动");
         onlineUserNumberPane.setBounds(6, 415, 53, 16);
         frame.getContentPane().add(onlineUserNumberPane);
     }
@@ -282,6 +285,8 @@ public class ChatServer {
         // handler线程池
         private ExecutorService handlerThreadPool;
 
+        ServerSocket serverSocket;
+
         @Override
         public void run() {
             // 初始化请求队列
@@ -317,14 +322,15 @@ public class ChatServer {
                         Request request = requestQueue.take();
                         Runnable handler = new Handler(request);
                         handlerThreadPool.execute(handler);
-                    } catch (InterruptedException e) {
+                    } catch (Exception e) {
                         e.printStackTrace();
+                        break;
                     }
                 }
             };
             Thread handlerExecutionThread = new Thread(handlerExecution);
             handlerExecutionThread.start();
-            displayInfo("请求处理线程池已启动");
+            displayInfo("请求处理线程池任务投送线程已启动");
         }
 
         // 启动服务
@@ -333,13 +339,14 @@ public class ChatServer {
             InetAddress addr = InetAddress.getLocalHost();
             displayInfo("本机局域网ip地址：" + addr.getHostAddress() + "，端口：" + port);
             // 初始化server socket，用户-输出流映射表
-            ServerSocket serverSocket = new ServerSocket(port);
+            serverSocket = new ServerSocket(port);
             userOutMap = new ConcurrentHashMap<>();
             displayInfo("服务器启动完成，等待用户连接……");
             msgSendButton.setEnabled(true);
 
             while (true) {
                 // 等待与客户端建立连接，初始化输入输出流
+
                 Socket socket = serverSocket.accept();
                 ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
                 ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
@@ -378,9 +385,9 @@ public class ChatServer {
                                             System.out.println(request);
                                             requestQueue.put(request);
                                         }
-                                    } catch (IOException | InterruptedException | ClassNotFoundException e) {
+                                    } catch (Exception e) {
                                         e.printStackTrace();
-                                        if (e instanceof IOException) {
+                                        if (e instanceof IOException | e instanceof EOFException) {
                                             // 发生异常，退出侦听
                                             break;
                                         }
@@ -388,6 +395,11 @@ public class ChatServer {
                                 }
                                 // 显示用户断开连接，移除用户
                                 displayInfo(userName + "断开连接");
+                                try {
+                                    socket.close();
+                                } catch (IOException e) {
+                                    e.printStackTrace();
+                                }
                                 try {
                                     removeUser(userName);
                                 } catch (InterruptedException e) {
@@ -401,13 +413,16 @@ public class ChatServer {
                     }
 
                 }).start();
+
             }
         }
 
         // 与用户断连，删除用户
         private void removeUser(String username) throws InterruptedException {
-            userOutMap.remove(username);
-            requestQueue.put(new Request("server", "server", REFRESH_USER_LIST));
+            if (userOutMap != null) {
+                userOutMap.remove(username);
+                requestQueue.put(new Request("server", "server", REFRESH_USER_LIST));
+            }
         }
 
         // Handler 处理Request
@@ -479,6 +494,11 @@ public class ChatServer {
                         }
 
                     case SHUTDOWN:
+                        try {
+                            serverSocket.close();
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
                         Collection<ObjectOutputStream> outs = userOutMap.values();
                         for (ObjectOutputStream out : outs) {
                             try {
@@ -489,7 +509,9 @@ public class ChatServer {
                                 e.printStackTrace();
                             }
                         }
-
+                        userOutMap = null;
+                        handlerThreadPool = null;
+                        onlineUserNumberPane.setText("服务器未启动");
                         displayInfo("已关闭服务");
 
                 }
