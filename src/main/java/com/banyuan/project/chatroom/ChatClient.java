@@ -467,7 +467,7 @@ public class ChatClient {
 
             Thread handleExecutionThread = new Thread(handlerExecution);
             handleExecutionThread.start();
-            displayInfo("响应处理线程池已启动");
+            displayInfo("响应处理线程池任务投递线程已启动");
 
         }
 
