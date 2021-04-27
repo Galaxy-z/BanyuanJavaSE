@@ -123,7 +123,7 @@ public class ChatClient {
         logInButton.setEnabled(false);
         frame.getContentPane().add(logInButton);
         logInButton.addActionListener(e -> {
-            new Thread(new netEngine()).start();
+            new Thread(new NetEngine()).start();
             userSetButton.setEnabled(false);
             connectSetButton.setEnabled(false);
         });
@@ -411,7 +411,7 @@ public class ChatClient {
         displayInfo(info);
     }
 
-    private class netEngine implements Runnable {
+    private class NetEngine implements Runnable {
         // handler线程池
         private ExecutorService handlerThreadPool;
         // 与服务器对接的输出流
