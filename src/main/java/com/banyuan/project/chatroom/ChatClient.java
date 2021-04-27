@@ -518,6 +518,9 @@ public class ChatClient {
                 displayInfo("已与服务器断开连接");
                 msgSendButton.setEnabled(false);
                 fileSendButton.setEnabled(false);
+                logInButton.setEnabled(true);
+                logOutButton.setEnabled(false);
+                toUserComboBox.removeAllItems();
                 onlineUserNumberPane.setText("未连接服务器");
             }).start();
         }

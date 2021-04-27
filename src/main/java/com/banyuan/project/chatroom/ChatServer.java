@@ -96,7 +96,7 @@ public class ChatServer {
         frame.setLocation(500, 200);
 
         JButton portSetButton = new JButton("端口设置");
-        portSetButton.setForeground(new Color(205, 133, 63));
+        portSetButton.setForeground(new Color(100,149,237));
         portSetButton.setFont(new Font("Lucida Grande", Font.PLAIN, 16));
         portSetButton.setBounds(6, 6, 117, 39);
         frame.getContentPane().add(portSetButton);
@@ -147,7 +147,7 @@ public class ChatServer {
         jsp.setViewportView(infoDisplayArea);
 
         startServiceButton = new JButton("启动服务");
-        startServiceButton.setForeground(new Color(60, 179, 113));
+        startServiceButton.setForeground(new Color(244,164,96));
         startServiceButton.setFont(new Font("Lucida Grande", Font.PLAIN, 16));
         startServiceButton.setBounds(135, 6, 117, 39);
         frame.getContentPane().add(startServiceButton);
@@ -162,7 +162,7 @@ public class ChatServer {
         });
 
         stopServiceButton = new JButton("停止服务");
-        stopServiceButton.setForeground(new Color(128, 128, 128));
+        stopServiceButton.setForeground(new Color(95,158,160));
         stopServiceButton.setFont(new Font("Lucida Grande", Font.PLAIN, 16));
         stopServiceButton.setBounds(264, 6, 117, 39);
         stopServiceButton.setEnabled(false);
@@ -202,7 +202,7 @@ public class ChatServer {
         onlineUserNumberPane.setForeground(new Color(105, 105, 105));
         onlineUserNumberPane.setBackground(new Color(222, 184, 135));
         onlineUserNumberPane.setText("服务器未启动");
-        onlineUserNumberPane.setBounds(6, 415, 53, 16);
+        onlineUserNumberPane.setBounds(6, 415, 70, 16);
         frame.getContentPane().add(onlineUserNumberPane);
     }
 
@@ -342,6 +342,7 @@ public class ChatServer {
             serverSocket = new ServerSocket(port);
             userOutMap = new ConcurrentHashMap<>();
             displayInfo("服务器启动完成，等待用户连接……");
+            onlineUserNumberPane.setText("0人在线");
             msgSendButton.setEnabled(true);
 
             while (true) {
@@ -511,6 +512,7 @@ public class ChatServer {
                         }
                         userOutMap = null;
                         handlerThreadPool = null;
+                        toUserComboBox.removeAllItems();
                         onlineUserNumberPane.setText("服务器未启动");
                         displayInfo("已关闭服务");
 
