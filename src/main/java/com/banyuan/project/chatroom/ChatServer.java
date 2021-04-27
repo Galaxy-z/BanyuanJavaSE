@@ -362,16 +362,16 @@ public class ChatServer {
                         // 用户名重复
                         if (userOutMap.containsKey(userName)) {
                             // 响应REPEATED_USERNAME
-                            synchronized (Handler.class) {
+
                                 out.writeObject(new Response("server", null, REPEATED_USERNAME));
-                            }
+
                         }
                         // 新用户名
                         else {
                             // 响应OK
-                            synchronized (Handler.class) {
+
                                 out.writeObject(new Response("server", null, OK));
-                            }
+
                             // 存入用户名和输出流
                             userOutMap.put(userName, out);
                             // 请求刷新用户列表

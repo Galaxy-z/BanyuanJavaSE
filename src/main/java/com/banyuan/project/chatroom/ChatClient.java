@@ -437,6 +437,8 @@ public class ChatClient {
             } catch (IOException | ClassNotFoundException e) {
                 if (e instanceof IOException) {
                     displayInfo("无法连接服务器，请等待服务器启动后重试！");
+                    userSetButton.setEnabled(true);
+                    connectSetButton.setEnabled(true);
                 }
                 e.printStackTrace();
             }
@@ -478,9 +480,9 @@ public class ChatClient {
             out = new ObjectOutputStream(socket.getOutputStream());
             // 发送登录消息
             displayInfo("登录中……");
-            synchronized (Handler.class) {
+
                 out.writeObject(new Request(userName, "server", LOGIN));
-            }
+
             // 接受响应消息
             Response loginResponse = (Response) in.readObject();
             System.out.println(loginResponse);
@@ -547,7 +549,7 @@ public class ChatClient {
                         } catch (IOException e) {
                             e.printStackTrace();
                         }
-                        // 有新消息
+                    // 有新消息
                     case INCOMING_MSG:
                         try {
                             displayAndSendMsg(response, false);
@@ -555,7 +557,7 @@ public class ChatClient {
                         } catch (IOException e) {
                             e.printStackTrace();
                         }
-                        // 发送文件接受询问请求
+                    // 发送文件接受询问请求
                     case SEND_FILE_ACCEPT_REQUEST:
                         try {
                             sendFileAcceptRequest();
@@ -563,7 +565,7 @@ public class ChatClient {
                         } catch (IOException e) {
                             e.printStackTrace();
                         }
-                        // 询问是否接收文件
+                    // 询问是否接收文件
                     case ASK_FILE_ACCEPT:
                         try {
                             confirmAcceptFile();
@@ -571,7 +573,7 @@ public class ChatClient {
                         } catch (IOException | InterruptedException e) {
                             e.printStackTrace();
                         }
-                        // 对方拒绝文件接收
+                    // 对方拒绝文件接收
                     case TARGET_REFUSE_FILE:
                         selectedFile = null;
                         displayInfo(response.getFrom() + "拒绝接收文件");
@@ -584,7 +586,7 @@ public class ChatClient {
                         } catch (IOException | InterruptedException e) {
                             e.printStackTrace();
                         }
-                        // 验证失败
+                    // 验证失败
                     case VERIFICATION_FAILED:
                         displayInfo(response.getFrom() + "取消了文件传输");
                         break;
@@ -601,7 +603,7 @@ public class ChatClient {
                         } catch (InterruptedException e) {
                             e.printStackTrace();
                         }
-                        // 合并文件
+                    // 合并文件
                     case COMBINE_FILES:
                         try {
                             Thread.sleep(1000);
@@ -612,7 +614,7 @@ public class ChatClient {
                         combineFiles();
                         displayInfo("文件下载完成");
                         break;
-
+                    // 发送注销信息
                     case SEND_LOGOUT:
                         try {
                             logOut();
@@ -620,6 +622,7 @@ public class ChatClient {
                         } catch (IOException e) {
                             e.printStackTrace();
                         }
+                    // 服务器关闭
                     case SERVICE_SHUTDOWN:
                         try {
                             out.close();
@@ -637,6 +640,7 @@ public class ChatClient {
 
             }
 
+            // 注销
             private void logOut() throws IOException {
                 synchronized (Handler.class) {
                     out.writeObject(new Request(userName, "server", LOGOUT));
@@ -868,7 +872,7 @@ public class ChatClient {
                 String toUser = (String) toUserComboBox.getSelectedItem();
                 boolean whisper = whisperCheckBox.isSelected();
                 String msg = msgInputField.getText();
-                if (msg.equals("")) {
+                if (msg.trim().equals("")) {
                     displayInfo("消息不能为空！");
                 } else if (toUser.equals("所有人") && whisper) {
                     displayInfo("不能向所有人发悄悄话！");
