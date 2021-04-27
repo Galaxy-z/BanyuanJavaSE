@@ -33,7 +33,7 @@ public enum ResponseType implements Serializable {
     COMBINE_FILES,
     // 发送注销请求
     SEND_LOGOUT,
-    //
+    // 服务器已关闭
     SERVICE_SHUTDOWN
 
 
